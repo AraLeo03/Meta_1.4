@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>ArticleBoard - PWA Revisión por Pares</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    .status {
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: white;
+      font-size: 0.85em;
+    }
+
+    .Enviado { background: gray; }
+    .Revision { background: orange; }
+    .Cambios { background: purple; }
+    .Aceptado { background: green; }
+    .Rechazado { background: red; }
+  </style>
+</head>
+<body>
+
+<h1>Tablero de Seguimiento de Artículos</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Título</th>
+      <th>Estado</th>
+      <th>Rol</th>
+    </tr>
+  </thead>
+  <tbody id="articleBoard"></tbody>
+</table>
+
+<script>
+  // --- IndexedDB Setup ---
+  const DB_NAME = "EditorialDB";
+  const DB_VERSION = 1;
+  const STORE_NAME = "articles";
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // --- Data Access ---
+  async function getArticles() {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result);
+    });
+  }
+
+  async function seedDataIfEmpty() {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+
+    const countRequest = store.count();
+    countRequest.onsuccess = () => {
+      if (countRequest.result === 0) {
+        store.add({ title: "Artículo A", status: "Enviado", role: "Autor" });
+        store.add({ title: "Artículo B", status: "Revision", role: "Revisor" });
+        store.add({ title: "Artículo C", status: "Aceptado", role: "Editor" });
+      }
+    };
+  }
+
+  // --- UI Rendering ---
+  function renderBoard(articles) {
+    const tbody = document.getElementById("articleBoard");
+    tbody.innerHTML = "";
+
+    articles.forEach(article => {
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${article.title}</td>
+        <td><span class="status ${article.status.replace(" ", "")}">${article.status}</span></td>
+        <td>${article.role}</td>
+      `;
+
+      tbody.appendChild(row);
+    });
+  }
+
+  // --- Init ---
+  (async function init() {
+    await seedDataIfEmpty();
+    const articles = await getArticles();
+    renderBoard(articles);
+  })();
+</script>
+
+</body>
+</html>
